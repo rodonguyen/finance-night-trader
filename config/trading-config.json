@@ -1,0 +1,32 @@
+{
+  "finnhub_api_key": "d5lk519r01qlna88bqkgd5lk519r01qlna88bql0",
+  "broker": "paper",
+  "paper_trading": true,
+  "capital": 10000,
+  "risk_rules": {
+    "max_position_size": 2000,
+    "max_position_pct": 20,
+    "max_daily_loss": 500,
+    "max_risk_per_trade": 200,
+    "max_concurrent_positions": 5,
+    "min_rr_ratio": 2.0
+  },
+  "trade_types": [
+    "stocks",
+    "etfs",
+    "crypto"
+  ],
+  "trade_styles": [
+    "day_trade",
+    "swing_trade",
+    "position_trade"
+  ],
+  "market_hours_aest": {
+    "premarket_start": "19:00",
+    "market_open": "00:30",
+    "market_close": "07:00",
+    "afterhours_end": "11:00"
+  },
+  "telegram_id": "1306216231",
+  "price_source": "finnhub"
+}

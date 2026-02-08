@@ -1,0 +1,22 @@
+# Secrets
+.env
+
+# Data files (contain positions/state)
+data/
+logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
