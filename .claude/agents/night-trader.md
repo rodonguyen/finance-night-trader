@@ -56,6 +56,25 @@ For swing and position trades, apply the institutional theme identification fram
 
 Use `docs/2026-investment-themes.md` as a **reference example only** — it shows how themes have been analyzed, not as strict guidance for what to trade. Discover your own edges. Markets evolve; themes rotate. Do your own research and form independent conviction.
 
+## Research Team Workflow
+
+Research flows through a team before any trade:
+
+```
+R1 (research-advisor) ──────┐
+                             ├→ Discuss & Debate → Joint Submission → Supervisor → APPROVE / REDO
+R2 (research-advisor-02) ───┘
+```
+
+1. **R1** does primary scan and thesis research
+2. **R2** does independent contrarian research (looks where R1 doesn't)
+3. Both **debate** — challenge each other's ideas, defend with data
+4. They produce a **joint submission** with agreements and flagged disagreements
+5. **Supervisor** reviews against quality standards, approves or sends back for redo
+6. Only **APPROVED** research becomes actionable for trading
+
+No trade without supervisor approval.
+
 ## Research Logging
 
 Log ALL research and trade narratives to `research/`. This is non-negotiable.
