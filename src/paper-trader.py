@@ -80,19 +80,35 @@ def log_trade(action, symbol, qty, price, pnl=None, thesis=None):
     with open(TRADES_LOG, 'a') as f:
         f.write(log_line + "\n")
 
-def get_price(symbol):
-    """Get current price from Finnhub"""
-    finnhub_symbol = symbol
+def get_price_yahoo(symbol):
+    """Get current price from Yahoo Finance (used for ASX)"""
+    yahoo_symbol = symbol
+    suffix = MARKET_CONFIG.get('finnhub_suffix', '.AX')
+    if not symbol.endswith(suffix):
+        yahoo_symbol = f"{symbol}{suffix}"
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_symbol}?range=1d&interval=1d"
+    try:
+        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+        data = r.json()
+        meta = data['chart']['result'][0]['meta']
+        price = meta.get('regularMarketPrice', 0)
+        if price and price > 0:
+            return float(price)
+    except:
+        pass
+    return None
 
-    # Handle crypto symbols (US market only)
-    if MARKET == 'us' and symbol.endswith('USD') and len(symbol) > 4:
+def get_price(symbol):
+    """Get current price — Finnhub for US, Yahoo Finance for ASX"""
+    # ASX: use Yahoo Finance (Finnhub free tier doesn't support ASX)
+    if MARKET == 'asx':
+        return get_price_yahoo(symbol)
+
+    # US: use Finnhub
+    finnhub_symbol = symbol
+    if symbol.endswith('USD') and len(symbol) > 4:
         crypto = symbol[:-3]
         finnhub_symbol = f"BINANCE:{crypto}USDT"
-    elif MARKET == 'asx':
-        suffix = MARKET_CONFIG.get('finnhub_suffix', '.AX')
-        # Don't double-add suffix
-        if not symbol.endswith(suffix):
-            finnhub_symbol = f"{symbol}{suffix}"
 
     url = f"https://finnhub.io/api/v1/quote?symbol={finnhub_symbol}&token={FINNHUB_KEY}"
     try:
@@ -103,7 +119,7 @@ def get_price(symbol):
     except:
         pass
 
-    # Fallback: try without suffix modification
+    # Fallback for US stocks
     if finnhub_symbol != symbol:
         url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_KEY}"
         try:

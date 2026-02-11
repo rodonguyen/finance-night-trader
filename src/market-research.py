@@ -42,14 +42,35 @@ def finnhub_get(endpoint, params={}):
     except Exception as e:
         return {"error": str(e)}
 
-def get_quote(symbol):
-    """Get current quote for a symbol, applying market suffix"""
-    finnhub_symbol = symbol
-    if MARKET == 'asx':
+def yahoo_quote(symbol):
+    """Get quote from Yahoo Finance (for ASX). Returns Finnhub-compatible dict."""
+    # Index symbols start with ^ and are used as-is
+    if symbol.startswith('^'):
+        yahoo_symbol = symbol
+    else:
         suffix = MARKET_CONFIG.get('finnhub_suffix', '.AX')
-        if not symbol.endswith(suffix):
-            finnhub_symbol = f"{symbol}{suffix}"
-    return finnhub_get("quote", {"symbol": finnhub_symbol})
+        yahoo_symbol = symbol if symbol.endswith(suffix) else f"{symbol}{suffix}"
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_symbol}?range=1d&interval=1d"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+        meta = data['chart']['result'][0]['meta']
+        c = meta.get('regularMarketPrice', 0)
+        pc = meta.get('chartPreviousClose', 0) or meta.get('previousClose', 0)
+        d = (c - pc) if (c and pc) else 0
+        dp = ((d / pc) * 100) if pc else 0
+        h = meta.get('regularMarketDayHigh', 0) or c
+        l = meta.get('regularMarketDayLow', 0) or c
+        return {'c': c, 'pc': pc, 'd': d, 'dp': dp, 'h': h, 'l': l}
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_quote(symbol):
+    """Get current quote for a symbol — Finnhub for US, Yahoo for ASX"""
+    if MARKET == 'asx':
+        return yahoo_quote(symbol)
+    return finnhub_get("quote", {"symbol": symbol})
 
 def get_market_news(category="general"):
     """Get market news"""
@@ -59,17 +80,30 @@ def get_company_news(symbol, days=1):
     """Get news for a specific company"""
     finnhub_symbol = symbol
     if MARKET == 'asx':
+        # Try Finnhub with .AX suffix for news (may not work on free tier)
         suffix = MARKET_CONFIG.get('finnhub_suffix', '.AX')
         if not symbol.endswith(suffix):
             finnhub_symbol = f"{symbol}{suffix}"
     today = datetime.now().strftime("%Y-%m-%d")
     from_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-    return finnhub_get("company-news", {"symbol": finnhub_symbol, "from": from_date, "to": today})
+    result = finnhub_get("company-news", {"symbol": finnhub_symbol, "from": from_date, "to": today})
+    # If ASX news fails, try without suffix
+    if MARKET == 'asx' and (not isinstance(result, list) or not result):
+        result = finnhub_get("company-news", {"symbol": symbol, "from": from_date, "to": today})
+    return result
 
 def get_market_status():
     """Check if market is open"""
     exchange = MARKET_CONFIG.get('finnhub_exchange', 'US')
-    return finnhub_get("stock/market-status", {"exchange": exchange})
+    result = finnhub_get("stock/market-status", {"exchange": exchange})
+    # Fallback for ASX: time-based check if Finnhub doesn't support it
+    if 'error' in result and MARKET == 'asx':
+        now = datetime.now(BRISBANE)
+        weekday = now.weekday()  # 0=Mon, 6=Sun
+        hour = now.hour
+        is_open = (0 <= weekday <= 4) and (10 <= hour < 16)
+        return {'isOpen': is_open, 'exchange': 'AS', 'source': 'time-based'}
+    return result
 
 def format_quote(symbol, data):
     """Format quote data nicely"""
@@ -236,22 +270,22 @@ def scan_asx_market():
         market_state = "🟢 OPEN" if status['isOpen'] else "🔴 CLOSED"
         output.append(f"**ASX Market:** {market_state}")
 
-    # ASX Indices
+    # ASX Indices (Yahoo uses ^AXJO, ^AORD format)
     output.append("\n**📈 ASX INDICES**")
-    indices = {'XJO': 'ASX 200', 'XAO': 'All Ords'}
+    indices = {'^AXJO': 'ASX 200', '^AORD': 'All Ords'}
     for sym, name in indices.items():
-        q = format_quote(sym, get_quote(sym))
-        output.append(q.replace(sym, name))
+        q = format_quote(name, get_quote(sym))
+        output.append(q)
 
-    # ASX Sectors
+    # ASX Sectors (Yahoo uses ^AX + sector code)
     output.append("\n**🏭 ASX SECTORS**")
     sectors = {
-        'XMJ': 'Materials', 'XEJ': 'Energy', 'XFJ': 'Financials',
-        'XIJ': 'IT', 'XHJ': 'Healthcare'
+        '^AXMJ': 'Materials', '^AXEJ': 'Energy', '^AXFJ': 'Financials',
+        '^AXIJ': 'IT', '^AXHJ': 'Healthcare'
     }
     for sym, name in sectors.items():
-        q = format_quote(sym, get_quote(sym))
-        output.append(q.replace(sym, name))
+        q = format_quote(name, get_quote(sym))
+        output.append(q)
 
     # Blue Chips
     output.append("\n**🏦 ASX BLUE CHIPS**")

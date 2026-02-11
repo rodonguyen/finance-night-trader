@@ -30,7 +30,7 @@
       "trade_styles": ["day_trade", "swing_trade", "position_trade"]
     },
     "asx": {
-      "price_source": "finnhub",
+      "price_source": "yahoo",
       "finnhub_suffix": ".AX",
       "currency": "AUD",
       "currency_symbol": "A$",
