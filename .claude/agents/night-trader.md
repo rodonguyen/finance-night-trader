@@ -99,13 +99,23 @@ Use `docs/2026-investment-themes.md` as a **reference example only** — it show
 Research flows through a team before any trade:
 
 ```
-R1 (research-advisor) ──────┐
-                             ├→ Discuss & Debate → Joint Submission → Supervisor → APPROVE / REDO
-R2 (research-advisor-02) ───┘
+READ PRIOR RESEARCH → R1 + R2 (parallel) → Discuss & Debate → Joint Submission → Supervisor → APPROVE / REDO
 ```
 
-1. **R1** does primary scan and thesis research
-2. **R2** does independent contrarian research (looks where R1 doesn't)
+### Step 0: Read Prior Research (MANDATORY — before spawning R1/R2)
+
+Before ANY research session, you MUST:
+1. Read last 2 days of `memory/<market>/YYYY-MM-DD.md` for context and lessons
+2. Read ALL files in `research/theses/<market>/` for open theses and prior analysis
+3. Read last scan `research/scans/<market>/YYYY-MM-DD.md` for yesterday's findings
+4. **Pass this context to R1 and R2** when spawning them — include file contents or summaries in their prompts so they build on prior work, not start from scratch
+
+This prevents duplicate research, ensures continuity, and lets agents reference price levels, catalysts, and verdicts from prior sessions.
+
+### Steps 1-6: Research Flow
+
+1. **R1** does primary scan and thesis research (receives prior research context)
+2. **R2** does independent contrarian research (receives prior research context, looks where R1 doesn't)
 3. Both **debate** — challenge each other's ideas, defend with data
 4. They produce a **joint submission** with agreements and flagged disagreements
 5. **Supervisor** reviews against quality standards, approves or sends back for redo
