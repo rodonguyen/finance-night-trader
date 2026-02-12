@@ -2,192 +2,124 @@
 
 ## Combined Schedule (AEST)
 
-| Time | Market | Action | Type |
-|------|--------|--------|------|
-| 8:00 AM | ASX | Pre-market scan | Cron (script) |
-| **8:15 AM** | **ASX** | **Full R1/R2/Supervisor research pipeline** | **Cron (Claude agent)** |
-| 10:00 AM | ASX | Market open, execute setups | Cron (script) |
-| 10:10 AM - 3:50 PM | ASX | Position checks (every 10 min) | Cron (script) |
-| 1:00 PM | ASX | Mid-session review | Cron (script) |
-| 4:00 PM | ASX | Market close, daily summary | Cron (script) |
-| 4:10 PM | ASX | Auto-commit research | Cron (git) |
-| 7:00 PM | US | Pre-market scan | Cron (script) |
-| **7:15 PM** | **US** | **Full R1/R2/Supervisor research pipeline** | **Cron (Claude agent)** |
-| 12:30 AM | US | Market open, execute setups | Cron (script) |
-| 12:40 AM - 6:50 AM | US | Position checks (every 10 min) | Cron (script) |
-| 3:00 AM | US | Mid-session review | Cron (script) |
-| 7:00 AM | US | Market close, daily summary | Cron (script) |
-| 7:10 AM | US | Auto-commit + push research | Cron (git) |
+Every cron event invokes a Claude agent via `./src/run-agent.sh <market> <event>`.
+
+| Time | Market | Event | Agent | Model | Budget |
+|------|--------|-------|-------|-------|--------|
+| 8:15 AM | ASX | Pre-market research (R1/R2/Supervisor) | night-trader | Opus | $5.00 |
+| 10:00 AM | ASX | Market open — review & execute | night-trader | Opus | $2.00 |
+| 10:10-3:50 | ASX | Position checks (every 10 min) | position-advisor | Haiku | $0.25 |
+| 1:00 PM | ASX | Mid-session review | night-trader | Haiku | $0.50 |
+| 4:00 PM | ASX | Market close — day trade exits, journal | night-trader | Haiku | $1.00 |
+| 4:10 PM | ASX | Auto-commit research | — | git | — |
+| 7:15 PM | US | Pre-market research (R1/R2/Supervisor) | night-trader | Opus | $5.00 |
+| 12:30 AM | US | Market open — review & execute | night-trader | Opus | $2.00 |
+| 12:40-6:50 | US | Position checks (every 10 min) | position-advisor | Haiku | $0.25 |
+| 3:00 AM | US | Mid-session review | night-trader | Haiku | $0.50 |
+| 7:00 AM | US | Market close — day trade exits, journal | night-trader | Haiku | $1.00 |
+| 7:10 AM | US | Auto-commit + push research | — | git | — |
+
+### Estimated Daily Cost
+- ASX: ~$5 (research) + $2 (open) + ~$5.40 (36 checks) + $0.50 (mid) + $1 (close) = **~$14/day**
+- US: ~$5 (research) + $2 (open) + ~$5.85 (39 checks) + $0.50 (mid) + $1 (close) = **~$14/day**
+- **Combined: ~$28/day** when both markets active
 
 ---
 
 ## ASX Daily Routine
 
-### 8:00 AM — Pre-Market Scan (automated)
+### 8:15 AM — Pre-Market Research (Opus, night-trader, $5)
 ```bash
-./src/market-research.py --market asx
+./src/run-agent.sh asx pre-market
 ```
-Runs via cron. Produces raw market data (indices, sectors, movers).
-
-### 8:15 AM — Research Pipeline (automated via Claude agent)
-```bash
-./src/run-research-pipeline.sh asx
-```
-Runs via cron. Claude agent (night-trader) orchestrates:
+Full R1/R2/Supervisor pipeline:
 1. Reads prior research (Step 0)
-2. Spawns R1 + R2 in parallel
-3. R1/R2 debate and produce joint submission
-4. Supervisor reviews and approves/rejects
-5. Executes any approved trades if conditions are met
-6. Writes daily journal and research logs
+2. Runs market scanner for fresh data
+3. Spawns R1 + R2 in parallel with full context
+4. R1/R2 debate and produce joint submission
+5. Supervisor reviews and approves/rejects
+6. Executes approved trades if entry conditions met
+7. Writes daily journal and research logs
 
-**Budget cap: $5 USD per session.** Logs to `logs/research-asx-YYYY-MM-DD.log`.
-
-### 10:00 AM — Market Open
+### 10:00 AM — Market Open (Opus, night-trader, $2)
 ```bash
-./src/paper-trader.py --market asx status
-./src/market-research.py --market asx
+./src/run-agent.sh asx market-open
 ```
+Critical decision point. Claude reviews approved research, gets fresh prices, and executes any setups that are confirming. Uses Opus because radical changes can happen at the open.
 
-**Tasks:**
-1. Check if pre-market setups are confirming
-2. Verify thesis still valid
-3. Execute confirmed setups
-4. Document decisions
-
-### 10:10 AM - 3:50 PM — Trading Session
-
-**Every 10 mins:**
+### 10:10 AM - 3:50 PM — Position Checks (Haiku, position-advisor, $0.25)
 ```bash
-./src/paper-trader.py --market asx check
+./src/run-agent.sh asx position-check
 ```
+Runs every 10 minutes. When positions exist: checks stops, targets, applies exit framework. When flat: monitors watchlist for significant moves. Lightweight — Haiku model keeps cost low.
 
-**If alerts:**
-- Review position
-- Apply exit framework
-- Execute if needed
-
-### 1:00 PM — Mid-Session Review
+### 1:00 PM — Mid-Session Review (Haiku, night-trader, $0.50)
 ```bash
-./src/paper-trader.py --market asx status
+./src/run-agent.sh asx mid-session
 ```
+More thorough than 10-min checks. Trail stops, take partials, scan for new setups not in morning research, update journal.
 
-**Tasks:**
-1. Full position review
-2. Trail stops if appropriate
-3. Take partials at targets
-4. Scan for new setups
-
-### 4:00 PM — Market Close
+### 4:00 PM — Market Close (Haiku, night-trader, $1)
 ```bash
-./src/paper-trader.py --market asx status
-./src/paper-trader.py --market asx history
+./src/run-agent.sh asx market-close
 ```
-
-**Tasks:**
-1. Close all day trades
-2. Calculate daily P&L
-3. Log lessons learned
-4. Update memory file
+Close all day trades (mandatory). Review swing/position holds. Calculate P&L. Write daily journal with trades, lessons, tomorrow's plan.
 
 ---
 
 ## US Daily Routine
 
-### 7:00 PM — Pre-Market Scan (automated)
+### 7:15 PM — Pre-Market Research (Opus, night-trader, $5)
 ```bash
-./src/market-research.py --market us
+./src/run-agent.sh us pre-market
 ```
-Runs via cron. Produces raw market data.
+Same R1/R2/Supervisor pipeline as ASX. Also reviews existing positions (UEC etc.).
 
-### 7:15 PM — Research Pipeline (automated via Claude agent)
+### 12:30 AM — Market Open (Opus, night-trader, $2)
 ```bash
-./src/run-research-pipeline.sh us
+./src/run-agent.sh us market-open
 ```
-Runs via cron. Same Claude agent pipeline as ASX (R1/R2/Supervisor).
-Also checks existing positions (stops, targets, management).
+Same as ASX open — review research, execute confirmed setups.
 
-**Budget cap: $5 USD per session.** Logs to `logs/research-us-YYYY-MM-DD.log`.
-
-### 12:30 AM — Market Open
+### 12:40 AM - 6:50 AM — Position Checks (Haiku, position-advisor, $0.25)
 ```bash
-./src/paper-trader.py --market us status
-./src/market-research.py --market us
+./src/run-agent.sh us position-check
 ```
+Same as ASX — every 10 minutes.
 
-**Tasks:**
-1. Check if pre-market setups are confirming
-2. Verify thesis still valid
-3. Execute confirmed setups
-4. Document decisions
-
-### 12:40 AM - 6:50 AM — Trading Session
-
-**Every 10 mins:**
+### 3:00 AM — Mid-Session Review (Haiku, night-trader, $0.50)
 ```bash
-./src/paper-trader.py --market us check
+./src/run-agent.sh us mid-session
 ```
 
-**If alerts:**
-- Review position
-- Apply exit framework
-- Execute if needed
-
-### 3:00 AM — Mid-Session Review
+### 7:00 AM — Market Close (Haiku, night-trader, $1)
 ```bash
-./src/paper-trader.py --market us status
+./src/run-agent.sh us market-close
 ```
-
-**Tasks:**
-1. Full position review
-2. Trail stops if appropriate
-3. Take partials at targets
-4. Scan for new setups
-
-### 7:00 AM — Market Close
-```bash
-./src/paper-trader.py --market us status
-./src/paper-trader.py --market us history
-```
-
-**Tasks:**
-1. Close all day trades
-2. Calculate daily P&L
-3. Log lessons learned
-4. Update memory file
 
 ---
 
 ## Quick Commands
 
 ```bash
-# US status
-./src/paper-trader.py --market us status
+# Manually trigger any event
+./src/run-agent.sh asx pre-market
+./src/run-agent.sh asx market-open
+./src/run-agent.sh asx position-check
+./src/run-agent.sh asx mid-session
+./src/run-agent.sh asx market-close
+./src/run-agent.sh us pre-market
+./src/run-agent.sh us market-open
 
-# ASX status
+# Check agent logs
+tail -100 logs/agent-asx-$(date '+%Y-%m-%d').log
+tail -100 logs/agent-us-$(date '+%Y-%m-%d').log
+
+# Raw Python scripts (still available for manual use)
 ./src/paper-trader.py --market asx status
-
-# US alerts
-./src/paper-trader.py --market us check
-
-# ASX alerts
 ./src/paper-trader.py --market asx check
-
-# US trade
+./src/market-research.py --market asx
+./src/paper-trader.py --market us status
 ./src/paper-trader.py --market us buy AAPL --dollars 2000 --stop 180 --target 200 --thesis "reason"
-
-# ASX trade
-./src/paper-trader.py --market asx buy BHP --dollars 2000 --stop 40 --target 50 --thesis "reason"
-
-# Exit trade
-./src/paper-trader.py --market us sell AAPL
 ./src/paper-trader.py --market asx sell BHP
-
-# Manually trigger research pipeline
-./src/run-research-pipeline.sh asx
-./src/run-research-pipeline.sh us
-
-# Check research pipeline logs
-tail -100 logs/research-asx-$(date '+%Y-%m-%d').log
-tail -100 logs/research-us-$(date '+%Y-%m-%d').log
 ```
