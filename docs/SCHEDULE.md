@@ -2,34 +2,46 @@
 
 ## Combined Schedule (AEST)
 
-| Time | Market | Action |
-|------|--------|--------|
-| 8:00 AM | ASX | Pre-market scan |
-| 10:00 AM | ASX | Market open, execute setups |
-| 10:10 AM - 3:50 PM | ASX | Position checks (every 10 min) |
-| 1:00 PM | ASX | Mid-session review |
-| 4:00 PM | ASX | Market close, daily summary |
-| 7:00 PM | US | Pre-market scan |
-| 12:30 AM | US | Market open, execute setups |
-| 12:40 AM - 6:50 AM | US | Position checks (every 10 min) |
-| 3:00 AM | US | Mid-session review |
-| 7:00 AM | US | Market close, daily summary |
+| Time | Market | Action | Type |
+|------|--------|--------|------|
+| 8:00 AM | ASX | Pre-market scan | Cron (script) |
+| **8:15 AM** | **ASX** | **Full R1/R2/Supervisor research pipeline** | **Cron (Claude agent)** |
+| 10:00 AM | ASX | Market open, execute setups | Cron (script) |
+| 10:10 AM - 3:50 PM | ASX | Position checks (every 10 min) | Cron (script) |
+| 1:00 PM | ASX | Mid-session review | Cron (script) |
+| 4:00 PM | ASX | Market close, daily summary | Cron (script) |
+| 4:10 PM | ASX | Auto-commit research | Cron (git) |
+| 7:00 PM | US | Pre-market scan | Cron (script) |
+| **7:15 PM** | **US** | **Full R1/R2/Supervisor research pipeline** | **Cron (Claude agent)** |
+| 12:30 AM | US | Market open, execute setups | Cron (script) |
+| 12:40 AM - 6:50 AM | US | Position checks (every 10 min) | Cron (script) |
+| 3:00 AM | US | Mid-session review | Cron (script) |
+| 7:00 AM | US | Market close, daily summary | Cron (script) |
+| 7:10 AM | US | Auto-commit + push research | Cron (git) |
 
 ---
 
 ## ASX Daily Routine
 
-### 8:00 AM — Pre-Market Scan
+### 8:00 AM — Pre-Market Scan (automated)
 ```bash
 ./src/market-research.py --market asx
 ```
+Runs via cron. Produces raw market data (indices, sectors, movers).
 
-**Tasks:**
-1. Run ASX market scanner
-2. Research movers (web search for news)
-3. Build watchlist with entry/stop/target
-4. Document in `memory/asx/YYYY-MM-DD.md`
-5. NO TRADES — just research
+### 8:15 AM — Research Pipeline (automated via Claude agent)
+```bash
+./src/run-research-pipeline.sh asx
+```
+Runs via cron. Claude agent (night-trader) orchestrates:
+1. Reads prior research (Step 0)
+2. Spawns R1 + R2 in parallel
+3. R1/R2 debate and produce joint submission
+4. Supervisor reviews and approves/rejects
+5. Executes any approved trades if conditions are met
+6. Writes daily journal and research logs
+
+**Budget cap: $5 USD per session.** Logs to `logs/research-asx-YYYY-MM-DD.log`.
 
 ### 10:00 AM — Market Open
 ```bash
@@ -82,17 +94,20 @@
 
 ## US Daily Routine
 
-### 7:00 PM — Pre-Market Scan
+### 7:00 PM — Pre-Market Scan (automated)
 ```bash
 ./src/market-research.py --market us
 ```
+Runs via cron. Produces raw market data.
 
-**Tasks:**
-1. Run US market scanner
-2. Research movers (web search for news)
-3. Build watchlist with entry/stop/target
-4. Document in `memory/us/YYYY-MM-DD.md`
-5. NO TRADES — just research
+### 7:15 PM — Research Pipeline (automated via Claude agent)
+```bash
+./src/run-research-pipeline.sh us
+```
+Runs via cron. Same Claude agent pipeline as ASX (R1/R2/Supervisor).
+Also checks existing positions (stops, targets, management).
+
+**Budget cap: $5 USD per session.** Logs to `logs/research-us-YYYY-MM-DD.log`.
 
 ### 12:30 AM — Market Open
 ```bash
@@ -167,4 +182,12 @@
 # Exit trade
 ./src/paper-trader.py --market us sell AAPL
 ./src/paper-trader.py --market asx sell BHP
+
+# Manually trigger research pipeline
+./src/run-research-pipeline.sh asx
+./src/run-research-pipeline.sh us
+
+# Check research pipeline logs
+tail -100 logs/research-asx-$(date '+%Y-%m-%d').log
+tail -100 logs/research-us-$(date '+%Y-%m-%d').log
 ```
